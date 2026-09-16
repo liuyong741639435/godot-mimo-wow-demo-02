@@ -51,6 +51,11 @@ func _ready() -> void:
 		VFX.level_up(get_parent(), global_position)
 		AUDIO.play(get_parent(), "levelup")
 	)
+	stats.exp_changed.connect(func(cur: int, need: int, lv: int) -> void:
+		# 调试/反馈：经验变化时轻提示
+		if need > 0 and cur < need and get_parent():
+			pass
+	)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_wire_animator()
 	equip_weapon("none")
@@ -181,8 +186,25 @@ func _physics_process(delta: float) -> void:
 	var dir := cam_fwd * (-input_vec.y) + cam_right * input_vec.x
 	if dir.length() > 0.01:
 		dir = dir.normalized()
-		if visual:
-			visual.rotation.y = lerp_angle(visual.rotation.y, atan2(dir.x, dir.z), 12.0 * delta)
+
+	# 朝向：优先打目标；右键锁定镜头朝向（可后退输出）；否则跟移动方向
+	if visual:
+		var face_yaw: float = visual.rotation.y
+		var have_face := false
+		if current_target and is_instance_valid(current_target) and current_target.has_method("is_alive") and current_target.is_alive():
+			if global_position.distance_to(current_target.global_position) <= GB.PLAYER_MELEE_RANGE + 0.6:
+				var to_t := current_target.global_position - global_position
+				if to_t.length_squared() > 0.0001:
+					face_yaw = atan2(to_t.x, to_t.z)
+					have_face = true
+		if not have_face and _mouse_captured:
+			# 按住右键：身体始终朝镜头前方，便于边退边打
+			face_yaw = atan2(cam_fwd.x, cam_fwd.z)
+			have_face = true
+		if not have_face and dir.length() > 0.01:
+			face_yaw = atan2(dir.x, dir.z)
+		if have_face or dir.length() > 0.01 or _mouse_captured or (current_target != null):
+			visual.rotation.y = lerp_angle(visual.rotation.y, face_yaw, 14.0 * delta)
 
 	if is_charging:
 		velocity.x = charge_dir.x * 18.0

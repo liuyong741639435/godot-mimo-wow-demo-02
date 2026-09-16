@@ -115,7 +115,7 @@ func spend_rage(amount: float) -> bool:
 
 
 func gain_exp(amount: int) -> void:
-	if _dead:
+	if _dead or amount <= 0:
 		return
 	if level >= GB.PLAYER_LEVEL_MAX and exp >= GB.exp_needed_for_level(GB.PLAYER_LEVEL_MAX):
 		exp_changed.emit(exp, get_exp_needed(), level)

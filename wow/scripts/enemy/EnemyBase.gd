@@ -41,6 +41,7 @@ var _corpse_t := 0.0
 var _stun_t := 0.0
 var _anim_t := 0.0
 var _select_ring: MeshInstance3D
+var _last_attacker: Node = null
 
 @onready var label: Label3D = $Label3D
 @onready var hp_bar_bg: MeshInstance3D = $HpBar
@@ -239,6 +240,7 @@ func _physics_process(delta: float) -> void:
 	_anim_t += delta
 	_animate()
 	_update_hp_bar()
+	_billboard_ui()
 	if selected and _select_ring:
 		_select_ring.rotation.y += delta * 2.5
 		var pulse := 1.0 + sin(_anim_t * 6.0) * 0.06
@@ -392,6 +394,8 @@ func take_damage(amount: float, from: Node = null) -> void:
 	if state == State.DEAD:
 		return
 	hp = maxf(hp - amount, 0.0)
+	if from:
+		_last_attacker = from
 	_update_hp_bar()
 	flash_hit()
 	if from and from.get("stats"):
@@ -405,7 +409,7 @@ func take_damage(amount: float, from: Node = null) -> void:
 		if state == State.PATROL or state == State.RETURN:
 			state = State.CHASE
 	if hp <= 0.0:
-		_die(from)
+		_die(from if from else _last_attacker)
 
 
 func apply_stun(t: float) -> void:
@@ -427,13 +431,15 @@ func _apply_dot_serial(damage_per_tick: float, ticks: int, interval: float) -> v
 		if get_parent():
 			DMGNUM.spawn(get_parent(), global_position + Vector3(0, 1.4, 0), str(int(round(damage_per_tick))), Color(0.7, 0.2, 0.55))
 		if hp <= 0.0:
-			_die(null)
+			_die(_last_attacker)
 		else:
 			_apply_dot_serial(damage_per_tick, ticks - 1, interval)
 	)
 
 
 func _die(killer: Node = null) -> void:
+	if killer == null:
+		killer = _last_attacker
 	if aggro:
 		_active_aggro_count = maxi(_active_aggro_count - 1, 0)
 	state = State.DEAD
@@ -444,10 +450,12 @@ func _die(killer: Node = null) -> void:
 	velocity = Vector3.ZERO
 	VFX.hit_spark(get_parent() if get_parent() else self, global_position)
 	AUDIO.play(get_parent() if get_parent() else self, "enemy_die")
-	if killer and killer.has_method("stats") and killer.stats:
+	if killer and killer.get("stats") and killer.stats:
 		killer.stats.gain_exp(exp_reward)
 		if killer.has_method("clear_target") and killer.get("current_target") == self:
 			killer.clear_target()
+		if get_parent():
+			DMGNUM.spawn(get_parent(), global_position + Vector3(0, 1.8, 0), "+%d EXP" % exp_reward, Color(0.35, 1.0, 0.45))
 		# 长剑掉落（主要在中后期怪）
 		var wid := WeaponData.roll_drop(type_id)
 		if wid != "" and killer.has_method("equip_weapon"):
@@ -497,6 +505,23 @@ func _update_hp_bar() -> void:
 	var ratio := clampf(hp / max_hp, 0.0, 1.0)
 	hp_bar_fill.scale.x = maxf(ratio, 0.01)
 	hp_bar_fill.position.x = -(1.0 - ratio) * 0.45
+
+
+func _billboard_ui() -> void:
+	var cam := get_viewport().get_camera_3d() if get_viewport() else null
+	if cam == null:
+		return
+	if hp_bar_bg and is_instance_valid(hp_bar_bg):
+		var to_cam := cam.global_position - hp_bar_bg.global_position
+		to_cam.y = 0.0
+		if to_cam.length_squared() > 0.0001:
+			hp_bar_bg.look_at(hp_bar_bg.global_position + to_cam.normalized(), Vector3.UP)
+	if get_node_or_null("EliteCrown"):
+		var crown: Node3D = get_node("EliteCrown")
+		var tc := cam.global_position - crown.global_position
+		tc.y = 0.0
+		if tc.length_squared() > 0.0001:
+			crown.look_at(crown.global_position + tc.normalized(), Vector3.UP)
 
 
 func _face(dir: Vector3) -> void:
