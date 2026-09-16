@@ -17,6 +17,8 @@ var equipped_weapon := "none"
 var weapon_bonus_atk := 0.0
 var _is_sword := false
 var _dust_cd := 0.0
+var _wvfx_color := Color(1, 0.95, 0.7)
+var inventory: PlayerInventory = null
 
 @onready var stats: PlayerStats = $PlayerStats
 @onready var skills: SkillController = $SkillController
@@ -66,6 +68,7 @@ func equip_weapon(weapon_id: String) -> void:
 	equipped_weapon = weapon_id
 	weapon_bonus_atk = float(w.get("atk_bonus", 0.0))
 	_is_sword = weapon_id != "none"
+	_wvfx_color = Color(w.get("vfx_color", Color(1, 0.95, 0.7)))
 	var weapon_root: Node3D = null
 	if visual:
 		weapon_root = visual.get_node_or_null("OrcVisual/Torso/ArmR/Weapon")
@@ -79,12 +82,33 @@ func equip_weapon(weapon_id: String) -> void:
 	weapon_changed.emit(weapon_id, str(w.get("display_name", "武器")))
 
 
+func equip_from_item(it: Dictionary) -> void:
+	if it.is_empty():
+		return
+	var wid: String = str(it.get("id", "none"))
+	equipped_weapon = wid
+	weapon_bonus_atk = float(it.get("atk_bonus", 0.0))
+	_is_sword = wid != "none"
+	_wvfx_color = Color(it.get("vfx", Color(1, 0.95, 0.7)))
+	var weapon_root: Node3D = null
+	if visual:
+		weapon_root = visual.get_node_or_null("OrcVisual/Torso/ArmR/Weapon")
+	if weapon_root:
+		if _is_sword:
+			WEAPON_BUILDER.build_sword(weapon_root, wid)
+		else:
+			WEAPON_BUILDER.build_axe(weapon_root)
+	if animator:
+		animator.is_sword = _is_sword
+	weapon_changed.emit(wid, str(it.get("name", "武器")))
+
+
 func get_total_attack() -> float:
 	return stats.get_base_attack() + weapon_bonus_atk
 
 
 func _wvfx() -> Color:
-	return Color(WD.get_weapon(equipped_weapon).get("vfx_color", Color(1, 0.95, 0.7)))
+	return _wvfx_color
 
 
 func _wire_animator() -> void:

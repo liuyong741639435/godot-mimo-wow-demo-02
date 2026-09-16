@@ -15,11 +15,15 @@ const QuestSystemScript := preload("res://wow/scripts/systems/QuestSystem.gd")
 const AudioManager := preload("res://wow/scripts/systems/AudioManager.gd")
 const PortalScript := preload("res://wow/scripts/systems/Portal.gd")
 const CampWorldScript := preload("res://wow/scripts/systems/CampWorld.gd")
+const InventoryUIScript := preload("res://wow/ui/InventoryUI.gd")
+const PlayerInventoryScript := preload("res://wow/scripts/systems/PlayerInventory.gd")
 
 var player: CharacterBody3D
 var hud: CanvasLayer
 var quests: Node
 var terrain: Node3D = null
+var inventory: Node
+var inv_ui: CanvasLayer
 var valley_world: Node3D
 var camp_world: Node3D
 var current_world := "valley"
@@ -37,6 +41,7 @@ func _ready() -> void:
 	_build_deco()
 	_setup_quests()
 	_build_camp_and_portal()
+	_setup_inventory()
 
 
 func _try_build_terrain3d() -> bool:
@@ -694,7 +699,54 @@ func _build_hud() -> void:
 			hud.bind_player(player)
 		if player and player.has_signal("target_changed"):
 			player.target_changed.connect(_on_target_changed)
+		if inv_ui and player and inventory:
+			inv_ui.bind(player, inventory)
 	, CONNECT_ONE_SHOT)
+
+
+func _setup_inventory() -> void:
+	inventory = Node.new()
+	inventory.name = "Inventory"
+	inventory.set_script(PlayerInventoryScript)
+	add_child(inventory)
+	if player:
+		player.set("inventory", inventory)
+
+	inv_ui = CanvasLayer.new()
+	inv_ui.name = "InventoryUI"
+	inv_ui.set_script(InventoryUIScript)
+	add_child(inv_ui)
+
+	# 输入
+	if not InputMap.has_action("toggle_bag"):
+		InputMap.add_action("toggle_bag")
+		var ev := InputEventKey.new()
+		ev.keycode = KEY_B
+		InputMap.action_add_event("toggle_bag", ev)
+	if not InputMap.has_action("toggle_char"):
+		InputMap.add_action("toggle_char")
+		var ev2 := InputEventKey.new()
+		ev2.keycode = KEY_C
+		InputMap.action_add_event("toggle_char", ev2)
+
+	# 药水数量联动背包展示
+	if player and player.get("stats"):
+		player.stats.potion_count_changed.connect(func(q: int) -> void:
+			if inventory:
+				inventory.update_potion_qty(q)
+		)
+
+	# 提示
+	if hud:
+		var root = hud.get_node_or_null("Root")
+		if root:
+			var h := Label.new()
+			h.text = "B 背包/装备 | C 角色状态"
+			h.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+			h.position = Vector2(-200, 8)
+			h.add_theme_font_size_override("font_size", 12)
+			h.add_theme_color_override("font_color", Color(1, 1, 1, 0.65))
+			root.add_child(h)
 
 
 func _make_bar_row(title: String, bar_name: String, text_name: String, fill: Color) -> HBoxContainer:

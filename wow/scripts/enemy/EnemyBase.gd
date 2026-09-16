@@ -456,21 +456,16 @@ func _die(killer: Node = null) -> void:
 			killer.clear_target()
 		if get_parent():
 			DMGNUM.spawn(get_parent(), global_position + Vector3(0, 1.8, 0), "+%d EXP" % exp_reward, Color(0.35, 1.0, 0.45))
-		# 长剑掉落（主要在中后期怪）
-		var wid := WeaponData.roll_drop(type_id)
-		if wid != "" and killer.has_method("equip_weapon"):
-			var better := true
-			var new_bonus: float = float(WeaponData.get_weapon(wid).get("atk_bonus", 0))
-			var old_bonus: float = float(WeaponData.get_weapon(killer.get("equipped_weapon")).get("atk_bonus", 0)) if killer.get("equipped_weapon") != null else 0.0
-			better = new_bonus >= old_bonus
-			if better:
-				killer.equip_weapon(wid)
-				var wname: String = WeaponData.get_weapon(wid)["display_name"]
-				if get_tree().current_scene and get_tree().current_scene.has_node("HUD"):
-					var hud = get_tree().current_scene.get_node("HUD")
-					if hud.has_method("show_toast"):
-						hud.show_toast("获得武器：%s" % wname, Color(1, 0.75, 0.2))
-				AUDIO.play(get_parent() if get_parent() else self, "quest")
+		# 装备掉落（进背包，非自动装备）
+		var drop: Dictionary = WeaponData.roll_drop(type_id, is_elite)
+		if not drop.is_empty() and killer.get("inventory"):
+			killer.inventory.add_weapon_drop(drop)
+			var qname: String = WeaponData.quality_name(str(drop.get("quality", "common")))
+			if get_tree().current_scene and get_tree().current_scene.has_node("HUD"):
+				var hud = get_tree().current_scene.get_node("HUD")
+				if hud.has_method("show_toast"):
+					hud.show_toast("掉落：%s  %s" % [qname, str(drop.get("name", ""))], WeaponData.quality_color(str(drop.get("quality", "common"))))
+			AUDIO.play(get_parent() if get_parent() else self, "quest")
 	died_signal.emit(self, killer)
 	if hp_bar_bg:
 		hp_bar_bg.visible = false
