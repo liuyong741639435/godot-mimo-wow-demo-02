@@ -140,9 +140,9 @@ func decompose_index(index: int) -> bool:
 	if int(it.get("uid", -1)) == equipped_weapon_uid:
 		return false
 	var q: String = str(it.get("quality", "common"))
-	var yield: Dictionary = WD.decompose_yield(q)
-	for k in yield:
-		add_material(str(k), int(yield[k]))
+	var salvage: Dictionary = WD.decompose_yield(q)
+	for k in salvage:
+		add_material(str(k), int(salvage[k]))
 	items.remove_at(index)
 	inventory_changed.emit()
 	return true

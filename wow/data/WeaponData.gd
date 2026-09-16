@@ -194,6 +194,10 @@ static func roll_drop(type_id: String, elite: bool = false) -> Dictionary:
 		total_w += float(e["weight"])
 	if total_w <= 0.0:
 		return {}
+	# 表内权重之和视为掉率（≤1），否则按相对权重必掉一条
+	var drop_p := minf(total_w, 1.0)
+	if randf() > drop_p:
+		return {}
 	var roll := randf() * total_w
 	var acc := 0.0
 	var picked: Dictionary = {}

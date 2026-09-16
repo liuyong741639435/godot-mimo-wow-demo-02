@@ -5,14 +5,14 @@ extends RefCounted
 const WD := preload("res://wow/data/WeaponData.gd")
 
 
-static func build_sword(weapon_root: Node3D, weapon_id: String) -> void:
+static func build_sword(weapon_root: Node3D, weapon_id: String, instance: Dictionary = {}) -> void:
 	if weapon_root == null:
 		return
 	for c in weapon_root.get_children():
 		c.queue_free()
 	var w: Dictionary = WD.get_weapon(weapon_id)
-	var col: Color = w["color"]
-	var sc: float = float(w.get("scale", 1.0))
+	var col: Color = Color(instance.get("color", w["color"]))
+	var sc: float = float(instance.get("scale", w.get("scale", 1.0)))
 
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = col

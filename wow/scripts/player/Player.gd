@@ -95,7 +95,7 @@ func equip_from_item(it: Dictionary) -> void:
 		weapon_root = visual.get_node_or_null("OrcVisual/Torso/ArmR/Weapon")
 	if weapon_root:
 		if _is_sword:
-			WEAPON_BUILDER.build_sword(weapon_root, wid)
+			WEAPON_BUILDER.build_sword(weapon_root, wid, it)
 		else:
 			WEAPON_BUILDER.build_axe(weapon_root)
 	if animator:
