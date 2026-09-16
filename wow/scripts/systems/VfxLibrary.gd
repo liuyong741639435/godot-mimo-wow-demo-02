@@ -5,12 +5,12 @@ extends RefCounted
 const ParticleScript := preload("res://wow/scripts/systems/VfxParticle.gd")
 
 
-static func slash(parent: Node, origin: Vector3) -> void:
-	_burst(parent, origin + Vector3(0, 1.1, 0), Color(1, 0.95, 0.7), 8, 0.25, 3.0)
+static func slash(parent: Node, origin: Vector3, color: Color = Color(1, 0.95, 0.7)) -> void:
+	_burst(parent, origin + Vector3(0, 1.1, 0), color, 10, 0.28, 3.2)
 
 
-static func hit_spark(parent: Node, origin: Vector3) -> void:
-	_burst(parent, origin + Vector3(0, 1.0, 0), Color(1, 0.5, 0.2), 12, 0.2, 3.5)
+static func hit_spark(parent: Node, origin: Vector3, color: Color = Color(1, 0.5, 0.2)) -> void:
+	_burst(parent, origin + Vector3(0, 1.0, 0), color, 12, 0.2, 3.5)
 
 
 static func charge_trail(parent: Node, origin: Vector3) -> void:

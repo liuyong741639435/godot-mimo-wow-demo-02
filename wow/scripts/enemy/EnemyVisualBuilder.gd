@@ -1,6 +1,6 @@
 class_name EnemyVisualBuilder
 extends RefCounted
-## 四种新手怪几何拼接：剪影更清晰、比例更自然。
+## Monster geometric builders (boar/scorpion/raptor/beast/kolkar/harpy/lizard/boss).
 
 
 static func build(parent: Node3D, type_id: String, color: Color) -> void:
@@ -13,6 +13,14 @@ static func build(parent: Node3D, type_id: String, color: Color) -> void:
 			_build_raptor(parent, color)
 		"beast":
 			_build_beast(parent, color)
+		"kolkar":
+			_build_kolkar(parent, color)
+		"harpy":
+			_build_harpy(parent, color)
+		"lizard":
+			_build_lizard(parent, color)
+		"boss":
+			_build_boss(parent, color)
 		_:
 			_build_boar(parent, color)
 
@@ -244,3 +252,98 @@ static func _build_beast(parent: Node3D, c: Color) -> void:
 		var t := float(i2)
 		_sph(parent, 0.10 - t * 0.015, Vector3(0, 0.65 - t * 0.05, -0.40 - t * 0.14), c.lightened(0.05 * t))
 		i2 += 1
+
+
+## 科尔卡半人马：人身马腿、长矛
+static func _build_kolkar(parent: Node3D, c: Color) -> void:
+	var dark := c.darkened(0.2)
+	# 马身
+	_cap(parent, 0.28, 0.70, Vector3(0, 0.55, -0.15), c, Vector3(90, 0, 0))
+	# 人身
+	_cap(parent, 0.18, 0.45, Vector3(0, 1.05, 0.15), c.lightened(0.08))
+	_sph(parent, 0.16, Vector3(0, 1.40, 0.18), c)
+	_glow_sph(parent, 0.03, Vector3(-0.07, 1.44, 0.30), Color(1, 0.4, 0.1))
+	_glow_sph(parent, 0.03, Vector3(0.07, 1.44, 0.30), Color(1, 0.4, 0.1))
+	# 角
+	_box(parent, Vector3(0.05, 0.18, 0.05), Vector3(-0.12, 1.55, 0.12), Color(0.85, 0.8, 0.65), Vector3(0.3, 0, 0.4))
+	_box(parent, Vector3(0.05, 0.18, 0.05), Vector3(0.12, 1.55, 0.12), Color(0.85, 0.8, 0.65), Vector3(0.3, 0, -0.4))
+	# 四条马腿
+	var legs: Array = [-0.18, 0.18]
+	for x in legs:
+		for z in [-0.35, 0.15]:
+			_cyl(parent, 0.05, 0.07, 0.55, Vector3(float(x), 0.28, z), dark)
+	# 长矛
+	_cyl(parent, 0.025, 0.025, 1.4, Vector3(0.32, 1.0, 0.25), Color(0.35, 0.22, 0.12), Vector3(0.15, 0, 0.2))
+	_box(parent, Vector3(0.06, 0.16, 0.04), Vector3(0.38, 1.65, 0.32), Color(0.7, 0.7, 0.75))
+
+
+## 荒漠鹰身人：鸟身女妖
+static func _build_harpy(parent: Node3D, c: Color) -> void:
+	var dark := c.darkened(0.18)
+	_cap(parent, 0.16, 0.40, Vector3(0, 1.0, 0), c)
+	_sph(parent, 0.14, Vector3(0, 1.28, 0.08), c.lightened(0.1))
+	# 翅膀
+	for side in [-1.0, 1.0]:
+		var fs := float(side)
+		_box(parent, Vector3(0.55, 0.08, 0.28), Vector3(fs * 0.40, 1.05, -0.05), dark, Vector3(0, 0, fs * 0.35))
+		_box(parent, Vector3(0.35, 0.06, 0.18), Vector3(fs * 0.65, 0.95, -0.15), c.darkened(0.1), Vector3(0, 0, fs * 0.5))
+	# 鸟爪腿
+	_cyl(parent, 0.04, 0.05, 0.45, Vector3(-0.10, 0.35, 0.05), Color(0.7, 0.55, 0.3))
+	_cyl(parent, 0.04, 0.05, 0.45, Vector3(0.10, 0.35, 0.05), Color(0.7, 0.55, 0.3))
+	# 眼
+	_glow_sph(parent, 0.03, Vector3(-0.07, 1.32, 0.18), Color(1, 0.3, 0.5))
+	_glow_sph(parent, 0.03, Vector3(0.07, 1.32, 0.18), Color(1, 0.3, 0.5))
+	# 喙
+	_box(parent, Vector3(0.08, 0.06, 0.14), Vector3(0, 1.24, 0.22), Color(0.85, 0.7, 0.3))
+
+
+## 雷霆蜥蜴：粗壮四足、电纹
+static func _build_lizard(parent: Node3D, c: Color) -> void:
+	var dark := c.darkened(0.25)
+	_cap(parent, 0.32, 0.90, Vector3(0, 0.50, 0), c, Vector3(90, 0, 0))
+	_sph(parent, 0.28, Vector3(0, 0.55, 0.25), c)
+	_sph(parent, 0.22, Vector3(0, 0.48, 0.55), c.lightened(0.08))
+	# 背脊
+	for i in range(5):
+		_box(parent, Vector3(0.06, 0.16, 0.08), Vector3(0, 0.85, -0.25 + float(i) * 0.15), Color(0.7, 0.85, 1.0))
+	# 眼
+	_glow_sph(parent, 0.04, Vector3(-0.14, 0.62, 0.62), Color(0.5, 0.9, 1))
+	_glow_sph(parent, 0.04, Vector3(0.14, 0.62, 0.62), Color(0.5, 0.9, 1))
+	# 粗腿
+	var xs: Array = [-0.28, 0.28]
+	for x in xs:
+		for z in [-0.28, 0.30]:
+			_cyl(parent, 0.10, 0.12, 0.40, Vector3(float(x), 0.20, z), dark)
+			_box(parent, Vector3(0.16, 0.08, 0.18), Vector3(float(x), 0.04, z + 0.04), dark.darkened(0.1))
+	# 尾巴
+	_cap(parent, 0.12, 0.55, Vector3(0, 0.50, -0.60), c.darkened(0.1), Vector3(1.2, 0, 0))
+
+
+## 督军格罗玛什：大型兽人 Boss
+static func _build_boss(parent: Node3D, c: Color) -> void:
+	var dark := c.darkened(0.2)
+	var armor := Color(0.25, 0.12, 0.1)
+	var metal := Color(0.65, 0.55, 0.35)
+	# 躯干更壮
+	_box(parent, Vector3(0.95, 0.70, 0.50), Vector3(0, 1.25, 0), armor)
+	_box(parent, Vector3(0.70, 0.40, 0.40), Vector3(0, 0.85, 0), c)
+	# 大肩甲
+	_box(parent, Vector3(0.55, 0.30, 0.48), Vector3(-0.65, 1.55, 0), armor)
+	_box(parent, Vector3(0.55, 0.30, 0.48), Vector3(0.65, 1.55, 0), armor)
+	_box(parent, Vector3(0.12, 0.28, 0.12), Vector3(-0.65, 1.80, 0), metal)
+	_box(parent, Vector3(0.12, 0.28, 0.12), Vector3(0.65, 1.80, 0), metal)
+	# 头
+	_box(parent, Vector3(0.40, 0.38, 0.36), Vector3(0, 1.75, 0.05), c)
+	_box(parent, Vector3(0.32, 0.14, 0.28), Vector3(0, 1.60, 0.10), dark)
+	_box(parent, Vector3(0.08, 0.20, 0.08), Vector3(-0.12, 1.52, 0.18), Color(0.92, 0.9, 0.8), Vector3(-0.4, 0, -0.3))
+	_box(parent, Vector3(0.08, 0.20, 0.08), Vector3(0.12, 1.52, 0.18), Color(0.92, 0.9, 0.8), Vector3(-0.4, 0, 0.3))
+	_glow_sph(parent, 0.04, Vector3(-0.10, 1.80, 0.20), Color(1, 0.15, 0.1))
+	_glow_sph(parent, 0.04, Vector3(0.10, 1.80, 0.20), Color(1, 0.15, 0.1))
+	# 巨剑
+	_box(parent, Vector3(0.12, 1.40, 0.06), Vector3(0.85, 0.90, 0.2), metal, Vector3(0, 0, 0.15))
+	_box(parent, Vector3(0.35, 0.08, 0.10), Vector3(0.85, 0.25, 0.2), armor)
+	# 腿
+	_cyl(parent, 0.16, 0.18, 0.75, Vector3(-0.28, 0.38, 0), dark)
+	_cyl(parent, 0.16, 0.18, 0.75, Vector3(0.28, 0.38, 0), dark)
+	_box(parent, Vector3(0.28, 0.12, 0.35), Vector3(-0.28, 0.06, 0.05), armor)
+	_box(parent, Vector3(0.28, 0.12, 0.35), Vector3(0.28, 0.06, 0.05), armor)

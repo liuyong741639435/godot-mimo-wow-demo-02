@@ -3,6 +3,8 @@ extends CharacterBody3D
 const GB := preload("res://wow/data/GameBalance.gd")
 const VFX := preload("res://wow/scripts/systems/VfxLibrary.gd")
 const AUDIO := preload("res://wow/scripts/systems/AudioManager.gd")
+const DMGNUM := preload("res://wow/scripts/systems/DamageNumbers.gd")
+const WeaponData := preload("res://wow/data/WeaponData.gd")
 ## Full enemy: patrol, aggro, attack, leash, respawn. Geometry built by factory.
 
 signal died_signal(enemy: EnemyBase, killer: Node)
@@ -410,6 +412,27 @@ func apply_stun(t: float) -> void:
 	_stun_t = maxf(_stun_t, t)
 
 
+func apply_dot(damage_per_tick: float, ticks: int, interval: float) -> void:
+	_apply_dot_serial(damage_per_tick, ticks, interval)
+
+
+func _apply_dot_serial(damage_per_tick: float, ticks: int, interval: float) -> void:
+	if ticks <= 0:
+		return
+	get_tree().create_timer(interval).timeout.connect(func() -> void:
+		if state == State.DEAD:
+			return
+		hp = maxf(hp - damage_per_tick, 0.0)
+		_update_hp_bar()
+		if get_parent():
+			DMGNUM.spawn(get_parent(), global_position + Vector3(0, 1.4, 0), str(int(round(damage_per_tick))), Color(0.7, 0.2, 0.55))
+		if hp <= 0.0:
+			_die(null)
+		else:
+			_apply_dot_serial(damage_per_tick, ticks - 1, interval)
+	)
+
+
 func _die(killer: Node = null) -> void:
 	if aggro:
 		_active_aggro_count = maxi(_active_aggro_count - 1, 0)
@@ -425,6 +448,21 @@ func _die(killer: Node = null) -> void:
 		killer.stats.gain_exp(exp_reward)
 		if killer.has_method("clear_target") and killer.get("current_target") == self:
 			killer.clear_target()
+		# 长剑掉落（主要在中后期怪）
+		var wid := WeaponData.roll_drop(type_id)
+		if wid != "" and killer.has_method("equip_weapon"):
+			var better := true
+			var new_bonus: float = float(WeaponData.get_weapon(wid).get("atk_bonus", 0))
+			var old_bonus: float = float(WeaponData.get_weapon(killer.get("equipped_weapon")).get("atk_bonus", 0)) if killer.get("equipped_weapon") != null else 0.0
+			better = new_bonus >= old_bonus
+			if better:
+				killer.equip_weapon(wid)
+				var wname: String = WeaponData.get_weapon(wid)["display_name"]
+				if get_tree().current_scene and get_tree().current_scene.has_node("HUD"):
+					var hud = get_tree().current_scene.get_node("HUD")
+					if hud.has_method("show_toast"):
+						hud.show_toast("获得武器：%s" % wname, Color(1, 0.75, 0.2))
+				AUDIO.play(get_parent() if get_parent() else self, "quest")
 	died_signal.emit(self, killer)
 	if hp_bar_bg:
 		hp_bar_bg.visible = false

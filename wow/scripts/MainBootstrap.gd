@@ -13,11 +13,18 @@ const EnemyVisualBuilderScript := preload("res://wow/scripts/enemy/EnemyVisualBu
 const PlayerHUDScript := preload("res://wow/ui/PlayerHUD.gd")
 const QuestSystemScript := preload("res://wow/scripts/systems/QuestSystem.gd")
 const AudioManager := preload("res://wow/scripts/systems/AudioManager.gd")
+const PortalScript := preload("res://wow/scripts/systems/Portal.gd")
+const CampWorldScript := preload("res://wow/scripts/systems/CampWorld.gd")
 
 var player: CharacterBody3D
 var hud: CanvasLayer
 var quests: Node
 var terrain: Node3D = null
+var valley_world: Node3D
+var camp_world: Node3D
+var current_world := "valley"
+var portal_to_camp: Node3D
+var _npc_zone_near := false
 
 
 func _ready() -> void:
@@ -29,6 +36,7 @@ func _ready() -> void:
 	_build_enemies()
 	_build_deco()
 	_setup_quests()
+	_build_camp_and_portal()
 
 
 func _try_build_terrain3d() -> bool:
@@ -515,7 +523,7 @@ func _build_hud() -> void:
 	var skill_bar := HBoxContainer.new()
 	skill_bar.name = "SkillBar"
 	skill_bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	skill_bar.position = Vector2(-220, -78)
+	skill_bar.position = Vector2(-340, -72)
 	skill_bar.add_theme_constant_override("separation", 8)
 	root.add_child(skill_bar)
 
@@ -526,11 +534,16 @@ func _build_hud() -> void:
 		["intercept", "3", "拦截", 3],
 		["whirlwind", "4", "旋风斩", 5],
 		["potion", "5", "药水", 1],
+		["rend", "6", "撕裂", 6],
+		["thunder", "7", "雷霆一击", 7],
+		["execute", "8", "处决", 8],
+		["mortal", "9", "致死打击", 9],
+		["bladestorm", "0", "剑刃风暴", 10],
 	]
 	for sd in skills_def:
 		var slot := Control.new()
 		slot.name = "SkillSlot_%s" % sd[0]
-		slot.custom_minimum_size = Vector2(68, 68)
+		slot.custom_minimum_size = Vector2(56, 56)
 		slot.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		skill_bar.add_child(slot)
 
@@ -758,6 +771,20 @@ func _build_enemies() -> void:
 	jobs.append(["scorpion", Vector3(-34, 0.1, 28), true])
 	jobs.append(["raptor", Vector3(38, 0.1, -28), true])
 	jobs.append(["beast", Vector3(-32, 0.1, -36), true])
+	# 中期怪 Lv6-8（山谷深处）
+	var mid_spots := [
+		["kolkar", Vector3(40, 0.1, 20)],
+		["kolkar", Vector3(48, 0.1, 8)],
+		["kolkar", Vector3(36, 0.1, 32)],
+		["harpy", Vector3(-42, 0.1, -8)],
+		["harpy", Vector3(-50, 0.1, 4)],
+		["harpy", Vector3(-38, 0.1, -18)],
+		["lizard", Vector3(45, 0.1, -35)],
+		["lizard", Vector3(55, 0.1, -22)],
+		["boss", Vector3(0, 0.1, -55)],
+	]
+	for ms in mid_spots:
+		jobs.append([ms[0], ms[1]])
 	var i := 0
 	while i < jobs.size():
 		var elite: bool = jobs[i].size() > 2 and bool(jobs[i][2])
@@ -949,3 +976,152 @@ func _on_enemy_died(enemy: Node, _killer: Node) -> void:
 func _on_target_changed(target: Node) -> void:
 	if hud and hud.has_method("show_target"):
 		hud.show_target(target)
+
+
+func _build_camp_and_portal() -> void:
+	# 谷内传送门（靠近营地方向）
+	portal_to_camp = PortalScript.new()
+	portal_to_camp.name = "PortalToCamp"
+	portal_to_camp.set("target_world", "camp")
+	portal_to_camp.position = Vector3(-6, _ground_y(-6, 6), 6)
+	add_child(portal_to_camp)
+	portal_to_camp.connect("portal_used", _on_portal_used)
+
+	# 营地世界（默认隐藏）
+	camp_world = Node3D.new()
+	camp_world.name = "CampWorld"
+	camp_world.visible = false
+	add_child(camp_world)
+	var camp := Node3D.new()
+	camp.set_script(CampWorldScript)
+	camp_world.add_child(camp)
+	camp.call("build", player, quests, _on_portal_used)
+
+	# 任务状态：完成任务4后解锁传送门
+	if quests:
+		quests.quest_completed.connect(func(id: int, _e: int) -> void:
+			if id >= GB.PORTAL_UNLOCK_QUEST_ID:
+				portal_to_camp.set_locked(false)
+				if hud.has_method("show_toast"):
+					hud.show_toast("营地传送门已解锁！", Color(0.4, 0.8, 1))
+		)
+		quests.npc_quest_state_changed.connect(_update_npc_mark)
+
+	_set_input_npc()
+
+
+func _set_input_npc() -> void:
+	# F 键对话
+	if not InputMap.has_action("interact"):
+		InputMap.add_action("interact")
+		var ev := InputEventKey.new()
+		ev.keycode = KEY_F
+		InputMap.action_add_event("interact", ev)
+
+
+func _process(_delta: float) -> void:
+	if current_world != "camp":
+		return
+	if Input.is_action_just_pressed("interact"):
+		_try_talk_npc()
+
+
+func _try_talk_npc() -> void:
+	if quests == null or camp_world == null:
+		return
+	var npc: Node3D = null
+	for c in camp_world.get_children():
+		var n := c.get_node_or_null("QuestNPC") if c is Node else null
+		if n:
+			npc = n
+			break
+	# CampWorld script builds QuestNPC as child of camp root
+	if npc == null:
+		npc = camp_world.get_node_or_null("QuestNPC")
+	if npc == null:
+		# search deeper
+		npc = _find_node_name(camp_world, "QuestNPC")
+	if npc == null or player == null:
+		return
+	if player.global_position.distance_to(npc.global_position) > 4.0:
+		if hud.has_method("show_toast"):
+			hud.show_toast("靠近NPC再对话", Color(1, 1, 1, 0.7))
+		return
+	if quests.can_turn_in():
+		if quests.npc_turn_in() and hud.has_method("show_toast"):
+			hud.show_toast("任务完成，获得奖励！", Color(0.4, 1, 0.5))
+	elif quests.needs_npc():
+		if quests.npc_accept() and hud.has_method("show_toast"):
+			hud.show_toast("已接取任务：" + str(quests.current_quest().get("name", "")), Color(1, 0.9, 0.3))
+	else:
+		if hud.has_method("show_toast"):
+			hud.show_toast("暂无新任务，继续冒险吧", Color(1, 1, 1, 0.7))
+	_update_npc_mark()
+
+
+func _find_node_name(root: Node, nname: String) -> Node:
+	var stack: Array = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n.name == nname:
+			return n
+		for c in n.get_children():
+			stack.push_back(c)
+	return null
+
+
+func _update_npc_mark() -> void:
+	if camp_world == null or quests == null:
+		return
+	var npc := _find_node_name(camp_world, "QuestNPC")
+	if npc == null:
+		return
+	var mark: Label3D = npc.get_node_or_null("NpcMark")
+	if mark == null:
+		return
+	if quests.finished:
+		mark.text = ""
+	elif quests.can_turn_in():
+		mark.text = "?"
+		mark.modulate = Color(0.4, 1, 0.5)
+	elif quests.needs_npc():
+		mark.text = "!"
+		mark.modulate = Color(1, 0.85, 0.2)
+	else:
+		mark.text = ""
+
+
+func _on_portal_used(target: String) -> void:
+	_switch_world(target)
+
+
+func _switch_world(world: String) -> void:
+	if world == current_world or player == null:
+		return
+	if world == "camp":
+		current_world = "camp"
+		# 隐藏山谷内容（地形仍可保留，只藏怪和传送门）
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if e is Node3D:
+				(e as Node3D).visible = false
+				(e as Node3D).collision_layer = 0
+		if portal_to_camp:
+			portal_to_camp.visible = false
+		camp_world.visible = true
+		player.global_position = Vector3(0, 0.2, 4)
+		player.clear_target()
+		if hud.has_method("show_toast"):
+			hud.show_toast("抵达部落营地", Color(0.5, 0.9, 1))
+	elif world == "valley":
+		current_world = "valley"
+		camp_world.visible = false
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if e is Node3D:
+				(e as Node3D).visible = true
+				if e.has_method("is_alive") and e.is_alive():
+					(e as Node3D).collision_layer = 4
+		if portal_to_camp:
+			portal_to_camp.visible = true
+		player.global_position = Vector3(-6, _ground_y(-6, 4), 4)
+		if hud.has_method("show_toast"):
+			hud.show_toast("返回杜隆塔尔山谷", Color(0.9, 0.85, 0.5))

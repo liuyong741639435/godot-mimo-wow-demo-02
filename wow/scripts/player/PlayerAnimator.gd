@@ -14,6 +14,7 @@ enum AnimState { IDLE, RUN, JUMP, FALL, LAND, ATTACK, CAST, HIT, DEATH }
 @export var weapon_path: NodePath
 
 var state: AnimState = AnimState.IDLE
+var is_sword := false
 var _t: float = 0.0
 var _action_t: float = 0.0
 var _action_duration: float = 0.0
@@ -142,21 +143,27 @@ func _apply(_delta: float) -> void:
 		AnimState.ATTACK:
 			_reset_parts()
 			var p := clampf(_action_t / maxf(_action_duration, 0.01), 0.0, 1.0)
-			# 举起到下砸
+			# 举起到下砸（剑：更大横扫）
 			if p < 0.35:
 				var wind := p / 0.35
 				if _arm_r:
-					_arm_r.rotation.x = lerp(-0.1, -2.2, wind)
+					if is_sword:
+						_arm_r.rotation = Vector3(lerp(-0.2, -2.4, wind), 0, lerp(0.2, -0.9, wind))
+					else:
+						_arm_r.rotation.x = lerp(-0.1, -2.2, wind)
 				if _torso:
-					_torso.rotation.y = lerp(0.0, -0.35, wind)
+					_torso.rotation.y = lerp(0.0, -0.5 if is_sword else -0.35, wind)
 			else:
 				var strike := clampf((p - 0.35) / 0.35, 0.0, 1.0)
 				if _arm_r:
-					_arm_r.rotation.x = lerp(-2.2, 0.6, strike)
+					if is_sword:
+						_arm_r.rotation = Vector3(lerp(-2.4, 0.45, strike), 0, lerp(-0.9, 0.7, strike))
+					else:
+						_arm_r.rotation.x = lerp(-2.2, 0.6, strike)
 				if _torso:
-					_torso.rotation.y = lerp(-0.35, 0.25, strike)
+					_torso.rotation.y = lerp(-0.5 if is_sword else -0.35, 0.45 if is_sword else 0.25, strike)
 			if _arm_l:
-				_arm_l.rotation.x = -0.4
+				_arm_l.rotation.x = -0.5
 		AnimState.CAST:
 			_reset_parts()
 			var p2 := clampf(_action_t / maxf(_action_duration, 0.01), 0.0, 1.0)

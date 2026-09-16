@@ -63,7 +63,7 @@ func _resolve_ui() -> void:
 	target_hp_bar = _find_by_name("TargetHpBar") as ProgressBar
 	toast_label = _find_by_name("ToastLabel") as Label
 	_skill_slots.clear()
-	for id in ["heroic", "charge", "intercept", "whirlwind", "potion"]:
+	for id in ["heroic", "charge", "intercept", "whirlwind", "potion", "rend", "thunder", "execute", "mortal", "bladestorm"]:
 		var slot := _find_by_name("SkillSlot_%s" % id)
 		if slot:
 			_skill_slots[id] = {
@@ -129,6 +129,11 @@ func _refresh_skill_locks() -> void:
 		"heroic": 1, "charge": 1, "potion": 1,
 		"intercept": GB.INTERCEPT_UNLOCK_LEVEL,
 		"whirlwind": GB.WHIRLWIND_UNLOCK_LEVEL,
+		"rend": GB.REND_UNLOCK_LEVEL,
+		"thunder": GB.THUNDER_UNLOCK_LEVEL,
+		"execute": GB.EXECUTE_UNLOCK_LEVEL,
+		"mortal": GB.MORTAL_UNLOCK_LEVEL,
+		"bladestorm": GB.BLADESTORM_UNLOCK_LEVEL,
 	}
 	for id in _skill_slots:
 		var need: int = unlock.get(id, 1)

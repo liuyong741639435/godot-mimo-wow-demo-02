@@ -4,11 +4,19 @@ const GB := preload("res://wow/data/GameBalance.gd")
 const VFX := preload("res://wow/scripts/systems/VfxLibrary.gd")
 const AUDIO := preload("res://wow/scripts/systems/AudioManager.gd")
 const DMGNUM := preload("res://wow/scripts/systems/DamageNumbers.gd")
-## Orc warrior controller
+const WD := preload("res://wow/data/WeaponData.gd")
+const WEAPON_BUILDER := preload("res://wow/scripts/systems/WeaponBuilder.gd")
+## Orc warrior controller (sword/axe, dual-world)
 
 signal target_changed(target: Node)
 signal player_died
 signal player_respawned
+signal weapon_changed(weapon_id: String, display_name: String)
+
+var equipped_weapon := "none"
+var weapon_bonus_atk := 0.0
+var _is_sword := false
+var _dust_cd := 0.0
 
 @onready var stats: PlayerStats = $PlayerStats
 @onready var skills: SkillController = $SkillController
@@ -45,6 +53,33 @@ func _ready() -> void:
 	)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_wire_animator()
+	equip_weapon("none")
+
+
+func equip_weapon(weapon_id: String) -> void:
+	var w: Dictionary = WD.get_weapon(weapon_id)
+	equipped_weapon = weapon_id
+	weapon_bonus_atk = float(w.get("atk_bonus", 0.0))
+	_is_sword = weapon_id != "none"
+	var weapon_root: Node3D = null
+	if visual:
+		weapon_root = visual.get_node_or_null("OrcVisual/Torso/ArmR/Weapon")
+	if weapon_root:
+		if _is_sword:
+			WEAPON_BUILDER.build_sword(weapon_root, weapon_id)
+		else:
+			WEAPON_BUILDER.build_axe(weapon_root)
+	if animator:
+		animator.is_sword = _is_sword
+	weapon_changed.emit(weapon_id, str(w.get("display_name", "武器")))
+
+
+func get_total_attack() -> float:
+	return stats.get_base_attack() + weapon_bonus_atk
+
+
+func _wvfx() -> Color:
+	return Color(WD.get_weapon(equipped_weapon).get("vfx_color", Color(1, 0.95, 0.7)))
 
 
 func _wire_animator() -> void:
@@ -168,9 +203,6 @@ func _physics_process(delta: float) -> void:
 	_tick_combat_proximity(delta)
 
 
-var _dust_cd := 0.0
-
-
 func _footstep_dust(delta: float, dir: Vector3) -> void:
 	_dust_cd = maxf(_dust_cd - delta, 0.0)
 	if not is_on_floor() or dir.length() < 0.2 or _dust_cd > 0.0:
@@ -257,6 +289,31 @@ func _update_skills_input() -> void:
 			VFX.heal_spark(get_parent(), global_position)
 			AUDIO.play(get_parent(), "potion")
 			DMGNUM.heal_number(get_parent(), global_position, GB.POTION_HEAL_AMOUNT)
+	elif Input.is_action_just_pressed("skill_6"):
+		if skills.try_rend():
+			animator.play_action(PlayerAnimator.AnimState.ATTACK, 0.35)
+			AUDIO.play(get_parent(), "slash")
+			_deal_skill_damage(GB.REND_DAMAGE_MULT, true)
+	elif Input.is_action_just_pressed("skill_7"):
+		if skills.try_thunder():
+			animator.play_action(PlayerAnimator.AnimState.CAST, 0.5)
+			AUDIO.play(get_parent(), "heavy")
+			_deal_aoe(GB.THUNDER_RADIUS, GB.THUNDER_DAMAGE_MULT)
+	elif Input.is_action_just_pressed("skill_8"):
+		if skills.try_execute():
+			animator.play_action(PlayerAnimator.AnimState.ATTACK, 0.4)
+			AUDIO.play(get_parent(), "heavy")
+			_deal_skill_damage(GB.EXECUTE_DAMAGE_MULT)
+	elif Input.is_action_just_pressed("skill_9"):
+		if skills.try_mortal():
+			animator.play_action(PlayerAnimator.AnimState.ATTACK, 0.45)
+			AUDIO.play(get_parent(), "heavy")
+			_deal_skill_damage(GB.MORTAL_DAMAGE_MULT)
+	elif Input.is_action_just_pressed("skill_10"):
+		if skills.try_bladestorm():
+			animator.play_action(PlayerAnimator.AnimState.CAST, 0.8)
+			AUDIO.play(get_parent(), "whirl")
+			_deal_bladestorm()
 
 
 func _start_charge() -> void:
@@ -299,7 +356,7 @@ func _update_charge(_delta: float) -> void:
 		var d := global_position.distance_to(current_target.global_position)
 		if d <= GB.PLAYER_MELEE_RANGE:
 			if stats.in_combat and stats.level >= GB.INTERCEPT_UNLOCK_LEVEL:
-				_apply_damage_to(current_target, stats.get_base_attack() * GB.INTERCEPT_DAMAGE_MULT)
+				_apply_damage_to(current_target, get_total_attack() * GB.INTERCEPT_DAMAGE_MULT)
 			else:
 				_apply_damage_to(current_target, GB.CHARGE_DAMAGE)
 				if current_target.has_method("apply_stun"):
@@ -324,29 +381,60 @@ func _tick_auto_attack(delta: float) -> void:
 		return
 	attack_timer = GB.PLAYER_ATTACK_INTERVAL
 	animator.play_action(PlayerAnimator.AnimState.ATTACK, 0.35)
-	VFX.slash(get_parent(), global_position)
+	VFX.slash(get_parent(), global_position, _wvfx())
 	AUDIO.play(get_parent(), "slash")
 	get_tree().create_timer(0.12).timeout.connect(func() -> void:
 		if current_target and is_instance_valid(current_target):
 			if global_position.distance_to(current_target.global_position) <= GB.PLAYER_MELEE_RANGE + 0.4:
-				_apply_damage_to(current_target, stats.get_base_attack())
+				_apply_damage_to(current_target, get_total_attack())
 				stats.add_rage(GB.PLAYER_ATTACK_RAGE_GAIN)
 				stats.enter_combat()
-				VFX.hit_spark(get_parent(), current_target.global_position)
+				VFX.hit_spark(get_parent(), current_target.global_position, _wvfx())
 				AUDIO.play(get_parent(), "hit")
 	)
 
 
-func _deal_skill_damage(mult: float) -> void:
+func _deal_skill_damage(mult: float, apply_rend: bool = false) -> void:
 	if current_target == null or not is_instance_valid(current_target):
 		return
 	get_tree().create_timer(0.1).timeout.connect(func() -> void:
 		if current_target and is_instance_valid(current_target):
 			if global_position.distance_to(current_target.global_position) <= GB.PLAYER_MELEE_RANGE + 0.5:
-				_apply_damage_to(current_target, stats.get_base_attack() * mult)
+				_apply_damage_to(current_target, get_total_attack() * mult)
 				stats.enter_combat()
-				VFX.hit_spark(get_parent(), current_target.global_position)
+				VFX.hit_spark(get_parent(), current_target.global_position, _wvfx())
+				if apply_rend and current_target.has_method("apply_dot"):
+					current_target.apply_dot(get_total_attack() * GB.REND_DOT_MULT, GB.REND_DOT_TICKS, 1.0)
 	)
+
+
+func _deal_aoe(radius: float, mult: float) -> void:
+	VFX.whirlwind(get_parent(), global_position)
+	get_tree().create_timer(0.15).timeout.connect(func() -> void:
+		var hit_any := false
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if e is Node3D and e.has_method("is_alive") and e.is_alive():
+				if global_position.distance_to(e.global_position) <= radius:
+					_apply_damage_to(e, get_total_attack() * mult)
+					hit_any = true
+		if hit_any:
+			stats.enter_combat()
+	)
+
+
+func _deal_bladestorm() -> void:
+	var pulse_i := 0
+	while pulse_i < GB.BLADESTORM_PULSES:
+		var delay := 0.2 * float(pulse_i)
+		get_tree().create_timer(delay).timeout.connect(func() -> void:
+			VFX.whirlwind(get_parent(), global_position)
+			for e in get_tree().get_nodes_in_group("enemies"):
+				if e is Node3D and e.has_method("is_alive") and e.is_alive():
+					if global_position.distance_to(e.global_position) <= GB.BLADESTORM_RADIUS:
+						_apply_damage_to(e, get_total_attack() * GB.BLADESTORM_DAMAGE_MULT)
+						stats.enter_combat()
+		)
+		pulse_i += 1
 
 
 func _deal_whirlwind() -> void:
@@ -357,8 +445,8 @@ func _deal_whirlwind() -> void:
 		for e in get_tree().get_nodes_in_group("enemies"):
 			if e is Node3D and e.has_method("is_alive") and e.is_alive():
 				if global_position.distance_to(e.global_position) <= GB.WHIRLWIND_RADIUS:
-					_apply_damage_to(e, stats.get_base_attack() * GB.WHIRLWIND_DAMAGE_MULT)
-					VFX.hit_spark(get_parent(), e.global_position)
+					_apply_damage_to(e, get_total_attack() * GB.WHIRLWIND_DAMAGE_MULT)
+					VFX.hit_spark(get_parent(), e.global_position, _wvfx())
 					hit_any = true
 		if hit_any:
 			stats.enter_combat()
