@@ -5,6 +5,7 @@ const VFX := preload("res://wow/scripts/systems/VfxLibrary.gd")
 const AUDIO := preload("res://wow/scripts/systems/AudioManager.gd")
 const DMGNUM := preload("res://wow/scripts/systems/DamageNumbers.gd")
 const WeaponData := preload("res://wow/data/WeaponData.gd")
+const ArmorData := preload("res://wow/data/ArmorData.gd")
 ## Full enemy: patrol, aggro, attack, leash, respawn. Geometry built by factory.
 
 signal died_signal(enemy: EnemyBase, killer: Node)
@@ -465,6 +466,15 @@ func _die(killer: Node = null) -> void:
 				var hud = get_tree().current_scene.get_node("HUD")
 				if hud.has_method("show_toast"):
 					hud.show_toast("掉落：%s  %s" % [qname, str(drop.get("name", ""))], WeaponData.quality_color(str(drop.get("quality", "common"))))
+			AUDIO.play(get_parent() if get_parent() else self, "quest")
+		var adrop: Dictionary = ArmorData.roll_drop(type_id, is_elite)
+		if not adrop.is_empty() and killer.get("inventory"):
+			killer.inventory.add_armor_drop(adrop)
+			var aq: String = WeaponData.quality_name(str(adrop.get("quality", "common")))
+			if get_tree().current_scene and get_tree().current_scene.has_node("HUD"):
+				var hud2 = get_tree().current_scene.get_node("HUD")
+				if hud2.has_method("show_toast"):
+					hud2.show_toast("掉落：%s  %s" % [aq, str(adrop.get("name", ""))], WeaponData.quality_color(str(adrop.get("quality", "common"))))
 			AUDIO.play(get_parent() if get_parent() else self, "quest")
 	died_signal.emit(self, killer)
 	if hp_bar_bg:

@@ -11,7 +11,64 @@ func build(player: Node, quests: Node, on_portal: Callable) -> void:
 	_build_ground()
 	_build_props()
 	_build_npc(player, quests)
+	_build_merchant()
 	_build_portal_back(on_portal)
+
+
+func _build_merchant() -> void:
+	var m := StaticBody3D.new()
+	m.name = "MerchantNPC"
+	m.collision_layer = 8
+	m.position = Vector3(5, 0.1, 2)
+	var col := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.4
+	cap.height = 1.7
+	col.shape = cap
+	col.position = Vector3(0, 0.85, 0)
+	m.add_child(col)
+	var vis := Node3D.new()
+	vis.name = "Visual"
+	m.add_child(vis)
+	var body := MeshInstance3D.new()
+	var bm := CapsuleMesh.new()
+	bm.radius = 0.35
+	bm.height = 1.4
+	body.mesh = bm
+	body.position = Vector3(0, 0.8, 0)
+	var bmat := StandardMaterial3D.new()
+	bmat.albedo_color = Color(0.45, 0.35, 0.2)
+	body.material_override = bmat
+	vis.add_child(body)
+	var head := MeshInstance3D.new()
+	var hm := BoxMesh.new()
+	hm.size = Vector3(0.34, 0.34, 0.32)
+	head.mesh = hm
+	head.position = Vector3(0, 1.65, 0)
+	var hmat := StandardMaterial3D.new()
+	hmat.albedo_color = Color(0.4, 0.48, 0.3)
+	head.material_override = hmat
+	vis.add_child(head)
+	# 货箱
+	var crate := MeshInstance3D.new()
+	var cm := BoxMesh.new()
+	cm.size = Vector3(0.8, 0.5, 0.6)
+	crate.mesh = cm
+	crate.position = Vector3(0.7, 0.25, 0.4)
+	var cmat := StandardMaterial3D.new()
+	cmat.albedo_color = Color(0.4, 0.28, 0.15)
+	crate.material_override = cmat
+	m.add_child(crate)
+	var lab := Label3D.new()
+	lab.name = "MerchantLabel"
+	lab.text = "军需官\n[按 G 交易]"
+	lab.position = Vector3(0, 2.2, 0)
+	lab.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lab.font_size = 18
+	lab.outline_size = 5
+	lab.modulate = Color(0.9, 0.85, 0.5)
+	m.add_child(lab)
+	add_child(m)
 
 
 func _build_ground() -> void:

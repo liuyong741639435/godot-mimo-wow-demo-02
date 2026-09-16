@@ -159,3 +159,25 @@ func get_display() -> String:
 	elif q["mode"] == "talk":
 		extra = "\n（前往部落营地）"
 	return "任务：%s\n%s  %d/%d\n奖励经验 %d%s" % [q["name"], q["desc"], progress, int(q["goal"]), int(q["reward_exp"]), extra]
+
+
+func to_dict() -> Dictionary:
+	return {
+		"current_index": current_index,
+		"progress": progress,
+		"finished": finished,
+		"accepted_npc_quest": accepted_npc_quest,
+		"portal_unlocked": portal_unlocked,
+	}
+
+
+func from_dict(data: Dictionary) -> void:
+	if data.is_empty():
+		return
+	current_index = clampi(int(data.get("current_index", 0)), 0, QUESTS.size())
+	progress = int(data.get("progress", 0))
+	finished = bool(data.get("finished", false))
+	accepted_npc_quest = bool(data.get("accepted_npc_quest", false))
+	portal_unlocked = bool(data.get("portal_unlocked", false))
+	_emit_current()
+	npc_quest_state_changed.emit()

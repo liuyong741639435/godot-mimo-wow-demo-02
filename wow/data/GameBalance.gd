@@ -36,6 +36,10 @@ const RAGE_DECAY_PER_SEC := 3.0
 const POTION_COUNT_INIT := 3
 const POTION_HEAL_AMOUNT := 40.0
 const POTION_COOLDOWN := 20.0
+## 商人：1 瓶药水 = 破损铁片数量
+const POTION_BUY_COST := {"iron_shard": 4}
+const DEFENSE_DAMAGE_REDUCTION_CAP := 0.55
+const BAG_CAPACITY := 24
 
 # 技能
 const HEROIC_RAGE_COST := 15.0

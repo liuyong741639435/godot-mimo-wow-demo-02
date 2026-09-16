@@ -69,6 +69,30 @@ func _run() -> void:
 
 	_check("toggle_bag registered", InputMap.has_action("toggle_bag"))
 	_check("toggle_char registered", InputMap.has_action("toggle_char"))
+	_check("toggle_merchant registered", InputMap.has_action("toggle_merchant"))
+	_check("quick_save registered", InputMap.has_action("quick_save"))
+	var merchant := scene.get_node_or_null("MerchantUI")
+	_check("merchant_ui exists", merchant != null)
+	if merchant and inv and player:
+		merchant.bind(player, inv)
+		_check("merchant inv bound", merchant.get("inv") == inv)
+	var quests := scene.get_node_or_null("QuestSystem")
+	if player and inv and quests:
+		var SaveSys = load("res://wow/scripts/systems/SaveSystem.gd")
+		_check("save_game", SaveSys.save_game(player, inv, quests))
+		var data = SaveSys.load_game()
+		_check("load_game non-empty", not data.is_empty())
+		if not data.is_empty():
+			inv.add_material("iron_shard", 7)
+			var iron7 := int(inv.materials["iron_shard"])
+			_check("apply_save", SaveSys.apply_save(data, player, inv, quests))
+			_check("iron not stuck at +7", int(inv.materials["iron_shard"]) != iron7 or iron7 == 7)
+	var has_bestiary := false
+	for e in get_nodes_in_group("enemies"):
+		if e is Node and e.has_node("Visual/BestiaryModel"):
+			has_bestiary = true
+			break
+	_check("bestiary model attached", has_bestiary)
 
 	print("=== smoke done, failed=%d ===" % failed)
 	quit(1 if failed > 0 else 0)

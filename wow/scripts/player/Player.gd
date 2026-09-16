@@ -111,6 +111,46 @@ func _wvfx() -> Color:
 	return _wvfx_color
 
 
+func get_armor_defense() -> float:
+	if inventory == null or not inventory.has_method("get_armor_def_bonus"):
+		return 0.0
+	return float(inventory.get_armor_def_bonus())
+
+
+func get_damage_reduction() -> float:
+	var def := get_armor_defense()
+	# 防御递减：def/(def+40)，上限 55%
+	if def <= 0.0:
+		return 0.0
+	return minf(def / (def + 40.0), GB.DEFENSE_DAMAGE_REDUCTION_CAP)
+
+
+func refresh_armor_max_hp() -> void:
+	if stats == null or inventory == null:
+		return
+	if not inventory.has_method("get_armor_hp_bonus"):
+		return
+	var base := GB.max_hp_for_level(stats.level)
+	var bonus := float(inventory.get_armor_hp_bonus())
+	var old_max := stats.max_hp
+	stats.max_hp = base + bonus
+	if stats.max_hp > old_max:
+		stats.hp = minf(stats.hp + (stats.max_hp - old_max), stats.max_hp)
+	elif stats.hp > stats.max_hp:
+		stats.hp = stats.max_hp
+	stats.health_changed.emit(stats.hp, stats.max_hp)
+
+
+func take_damage(amount: float, _from: Node = null) -> void:
+	if stats.is_dead():
+		return
+	var reduced := amount * (1.0 - get_damage_reduction())
+	stats.take_damage(reduced)
+	animator.play_action(PlayerAnimator.AnimState.HIT, 0.25)
+	AUDIO.play(get_parent(), "hurt")
+	DMGNUM.spawn(get_parent(), global_position + Vector3(0, 1.2, 0), str(int(round(reduced))), Color(1, 0.3, 0.25))
+
+
 func _wire_animator() -> void:
 	if animator == null or visual == null:
 		return
@@ -526,15 +566,6 @@ func _tick_combat_proximity(delta: float) -> void:
 		stats.enter_combat()
 	else:
 		stats.note_combat_idle(delta)
-
-
-func take_damage(amount: float, _from: Node = null) -> void:
-	if stats.is_dead():
-		return
-	stats.take_damage(amount)
-	animator.play_action(PlayerAnimator.AnimState.HIT, 0.25)
-	AUDIO.play(get_parent(), "hurt")
-	DMGNUM.spawn(get_parent(), global_position + Vector3(0, 1.2, 0), str(int(round(amount))), Color(1, 0.3, 0.25))
 
 
 func _on_died() -> void:

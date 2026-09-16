@@ -1,9 +1,14 @@
 class_name EnemyVisualBuilder
 extends RefCounted
-## Monster geometric builders (boar/scorpion/raptor/beast/kolkar/harpy/lizard/boss).
+## Monster geometric builders + Bestiary GLB overlay.
+
+const Models := preload("res://wow/scripts/systems/MonsterModelLibrary.gd")
 
 
-static func build(parent: Node3D, type_id: String, color: Color) -> void:
+static func build(parent: Node3D, type_id: String, color: Color, elite: bool = false) -> void:
+	# 优先使用 Bestiary 模型；失败则回退程序化几何
+	if Models.build(parent, type_id, elite):
+		return
 	match type_id:
 		"boar":
 			_build_boar(parent, color)

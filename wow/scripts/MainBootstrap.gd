@@ -17,6 +17,8 @@ const PortalScript := preload("res://wow/scripts/systems/Portal.gd")
 const CampWorldScript := preload("res://wow/scripts/systems/CampWorld.gd")
 const InventoryUIScript := preload("res://wow/ui/InventoryUI.gd")
 const PlayerInventoryScript := preload("res://wow/scripts/systems/PlayerInventory.gd")
+const MerchantUIScript := preload("res://wow/ui/MerchantUI.gd")
+const SaveSystem := preload("res://wow/scripts/systems/SaveSystem.gd")
 
 var player: CharacterBody3D
 var hud: CanvasLayer
@@ -24,6 +26,7 @@ var quests: Node
 var terrain: Node3D = null
 var inventory: Node
 var inv_ui: CanvasLayer
+var merchant_ui: CanvasLayer
 var valley_world: Node3D
 var camp_world: Node3D
 var current_world := "valley"
@@ -42,6 +45,8 @@ func _ready() -> void:
 	_setup_quests()
 	_build_camp_and_portal()
 	_setup_inventory()
+	_setup_merchant()
+	_setup_save_keys()
 
 
 func _try_build_terrain3d() -> bool:
@@ -735,18 +740,94 @@ func _setup_inventory() -> void:
 			if inventory:
 				inventory.update_potion_qty(q)
 		)
+	# 装备护甲后刷新最大生命
+	if inventory and not inventory.equipment_changed.is_connected(_on_equipment_changed):
+		inventory.equipment_changed.connect(_on_equipment_changed)
 
 	# 提示
 	if hud:
 		var root = hud.get_node_or_null("Root")
 		if root:
 			var h := Label.new()
-			h.text = "B 背包/装备 | C 角色状态"
+			h.text = "B 背包 | C 角色 | G 商人 | F5存档 F9读档"
 			h.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-			h.position = Vector2(-200, 8)
+			h.position = Vector2(-280, 8)
 			h.add_theme_font_size_override("font_size", 12)
 			h.add_theme_color_override("font_color", Color(1, 1, 1, 0.65))
 			root.add_child(h)
+
+
+func _on_equipment_changed(_slot: String, _name: String) -> void:
+	if player and player.has_method("refresh_armor_max_hp"):
+		player.refresh_armor_max_hp()
+
+
+func _setup_merchant() -> void:
+	merchant_ui = CanvasLayer.new()
+	merchant_ui.name = "MerchantUI"
+	merchant_ui.set_script(MerchantUIScript)
+	add_child(merchant_ui)
+	if not InputMap.has_action("toggle_merchant"):
+		InputMap.add_action("toggle_merchant")
+		var ev := InputEventKey.new()
+		ev.keycode = KEY_G
+		InputMap.action_add_event("toggle_merchant", ev)
+	if merchant_ui.has_method("bind"):
+		merchant_ui.bind(player, inventory)
+
+
+func _merchant_near() -> bool:
+	if current_world != "camp" or camp_world == null or player == null:
+		return false
+	var m := _find_node_name(camp_world, "MerchantNPC")
+	if m == null or not (m is Node3D):
+		return false
+	return player.global_position.distance_to((m as Node3D).global_position) <= 4.5
+
+
+func _process(_d: float) -> void:
+	# 商人：靠近营地军需官按 G
+	if Input.is_action_just_pressed("toggle_merchant"):
+		if _merchant_near():
+			var is_open: bool = merchant_ui != null and merchant_ui.get("open") == true
+			merchant_ui.set_open(not is_open)
+		elif hud and hud.has_method("show_toast"):
+			hud.show_toast("靠近营地军需官才能交易", Color(1, 1, 1, 0.7))
+	# 营地 NPC 任务对话
+	if current_world == "camp" and Input.is_action_just_pressed("interact"):
+		_try_talk_npc()
+
+
+func _setup_save_keys() -> void:
+	if not InputMap.has_action("quick_save"):
+		InputMap.add_action("quick_save")
+		var ev := InputEventKey.new()
+		ev.keycode = KEY_F5
+		InputMap.action_add_event("quick_save", ev)
+	if not InputMap.has_action("quick_load"):
+		InputMap.add_action("quick_load")
+		var ev2 := InputEventKey.new()
+		ev2.keycode = KEY_F9
+		InputMap.action_add_event("quick_load", ev2)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("quick_save"):
+		if SaveSystem.save_game(player, inventory, quests):
+			if hud.has_method("show_toast"):
+				hud.show_toast("已保存", Color(0.4, 1, 0.5))
+	elif event.is_action_pressed("quick_load"):
+		var data := SaveSystem.load_game()
+		if data.is_empty():
+			if hud.has_method("show_toast"):
+				hud.show_toast("没有存档", Color(1, 0.6, 0.4))
+		else:
+			if SaveSystem.apply_save(data, player, inventory, quests):
+				if hud.has_method("show_toast"):
+					hud.show_toast("读档成功", Color(0.4, 0.9, 1))
+			else:
+				if hud.has_method("show_toast"):
+					hud.show_toast("读档失败", Color(1, 0.3, 0.3))
 
 
 func _make_bar_row(title: String, bar_name: String, text_name: String, fill: Color) -> HBoxContainer:
@@ -901,7 +982,7 @@ func _spawn_enemy(type_id: String, pos: Vector3, idx: int, elite: bool = false) 
 	add_child(e)
 	e.configure(type_id, elite)
 	var data: Dictionary = GB.ENEMY_TYPES[type_id]
-	EnemyVisualBuilderScript.build(vis, type_id, data["body_color"])
+	EnemyVisualBuilderScript.build(vis, type_id, data["body_color"], elite)
 	if e.has_method("_refresh_label"):
 		e._refresh_label()
 	if elite:
@@ -1069,13 +1150,6 @@ func _set_input_npc() -> void:
 		var ev := InputEventKey.new()
 		ev.keycode = KEY_F
 		InputMap.action_add_event("interact", ev)
-
-
-func _process(_delta: float) -> void:
-	if current_world != "camp":
-		return
-	if Input.is_action_just_pressed("interact"):
-		_try_talk_npc()
 
 
 func _try_talk_npc() -> void:

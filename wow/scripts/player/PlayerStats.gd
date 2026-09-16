@@ -159,6 +159,10 @@ func _check_level_up() -> void:
 		var old_max := max_hp
 		level += 1
 		max_hp = GB.max_hp_for_level(level)
+		# 护甲生命加成（若背包已挂到玩家）
+		var player := get_parent()
+		if player and player.get("inventory") and player.inventory.has_method("get_armor_hp_bonus"):
+			max_hp += float(player.inventory.get_armor_hp_bonus())
 		if hp >= old_max:
 			hp = max_hp
 		else:
